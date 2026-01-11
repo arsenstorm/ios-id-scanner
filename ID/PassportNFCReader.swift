@@ -55,8 +55,8 @@ final class PassportNFCReader: NSObject, ObservableObject {
     do {
       currentMRZKey = try buildMRZKey(from: mrz)
     } catch {
-      errorMessage = "MRZ is not valid for NFC."
-      status = "Invalid MRZ."
+      errorMessage = "We couldn't use this scan to read the chip. Try scanning again."
+      status = "Scan not valid."
       return
     }
 

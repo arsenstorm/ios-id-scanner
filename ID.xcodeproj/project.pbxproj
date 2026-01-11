@@ -73,6 +73,7 @@
 			buildConfigurationList = B8ED7D002F081CC800CD508D /* Build configuration list for PBXNativeTarget "ID" */;
 			buildPhases = (
 				B8ED7CF12F081CC600CD508D /* Sources */,
+				B8F3A0A12F1A123400ABCD01 /* Verify Camera Usage Description */,
 				B8ED7CF22F081CC600CD508D /* Frameworks */,
 				B8ED7CF32F081CC600CD508D /* Resources */,
 			);
@@ -139,6 +140,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		B8F3A0A12F1A123400ABCD01 /* Verify Camera Usage Description */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Verify Camera Usage Description";
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/camera_usage_description.check",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nPLIST=\"${SRCROOT}/${INFOPLIST_FILE}\"\nVALUE=$(/usr/libexec/PlistBuddy -c \"Print :NSCameraUsageDescription\" \"$PLIST\" 2>/dev/null || true)\nif [ -z \"$VALUE\" ]; then\n  echo \"error: NSCameraUsageDescription is missing from $PLIST\"\n  exit 1\nfi\necho \"ok\" > \"${DERIVED_FILE_DIR}/camera_usage_description.check\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B8ED7CF12F081CC600CD508D /* Sources */ = {

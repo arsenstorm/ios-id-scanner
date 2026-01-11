@@ -4,13 +4,20 @@ import UIKit
 struct ContentView: View {
   private enum ScanStep: Int {
     case welcome
-    case mrz
     case rfidCheck
     case nfc
     case result
   }
 
+  private enum NavigationDirection {
+    case forward
+    case backward
+  }
+
   @State private var step: ScanStep = .welcome
+  @State private var navDirection: NavigationDirection = .forward
+  @State private var previousStep: ScanStep?
+  @State private var transitionProgress: CGFloat = 1
   @State private var mrz: String = ""
   @State private var mrzResult: MRZResult?
   @StateObject private var nfcReader = PassportNFCReader()
@@ -20,6 +27,7 @@ struct ContentView: View {
   @State private var isMRZLocked = false
   @State private var cameraBlur: CGFloat = 0
   @State private var didTriggerMRZ = false
+  @State private var isMRZSheetPresented = false
   private var hasResult: Bool { nfcReader.result != nil }
 
   var body: some View {
@@ -27,40 +35,28 @@ struct ContentView: View {
       ZStack {
         Color.white.ignoresSafeArea()
 
-        ZStack {
-          if step == .welcome {
-            welcomeView
-              .transition(screenTransition)
-          }
+        GeometryReader { geo in
+          let width = geo.size.width
+          let directionSign: CGFloat = navDirection == .forward ? 1 : -1
 
-          if step == .mrz {
-            mrzView
-              .transition(.opacity)
-          }
+          ZStack {
+            if let previousStep {
+              stepView(for: previousStep)
+                .offset(x: -directionSign * width * transitionProgress)
+            }
 
-          if step == .rfidCheck {
-            rfidCheckView
-              .transition(screenTransition)
+            stepView(for: step)
+              .offset(x: directionSign * width * (1 - transitionProgress))
           }
-
-          if step == .nfc {
-            nfcView
-              .transition(screenTransition)
-          }
-
-          if step == .result {
-            resultView
-              .transition(screenTransition)
-          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(step == .mrz ? 0 : 16)
-        .animation(.easeInOut(duration: 0.35), value: step)
         .onChange(of: step) { newStep in
-          guard newStep == .nfc, !hasStartedNFC else { return }
-          hasStartedNFC = true
-          isNFCActive = true
-          nfcReader.start(mrz: mrz)
+          if newStep == .nfc {
+            guard !hasStartedNFC else { return }
+            hasStartedNFC = true
+            isNFCActive = true
+            nfcReader.start(mrz: mrz)
+          }
         }
         .onChange(of: hasResult) { newValue in
           if newValue {
@@ -76,13 +72,30 @@ struct ContentView: View {
       }
     }
     .tint(.black)
+    .sheet(isPresented: $isMRZSheetPresented, onDismiss: handleMRZSheetDismiss) {
+      CameraPermissionGate(onCancel: {
+        isMRZSheetPresented = false
+        setStepInstantly(.welcome)
+      }) {
+        mrzScannerView
+      }
+      .presentationDetents([.large])
+      .presentationDragIndicator(.visible)
+    }
   }
 
-  private var screenTransition: AnyTransition {
-    .asymmetric(
-      insertion: .move(edge: .trailing).combined(with: .opacity),
-      removal: .move(edge: .leading).combined(with: .opacity)
-    )
+  @ViewBuilder
+  private func stepView(for step: ScanStep) -> some View {
+    switch step {
+    case .welcome:
+      welcomeView
+    case .rfidCheck:
+      rfidCheckView
+    case .nfc:
+      nfcView
+    case .result:
+      resultView
+    }
   }
 
   private var welcomeView: some View {
@@ -100,11 +113,11 @@ struct ContentView: View {
               .stroke(Color.black.opacity(0.1), lineWidth: 1)
           )
 
-        Text("Let's read your document")
+        Text("Let's read your ID")
           .font(.title3).bold()
           .foregroundStyle(.black)
 
-        Text("You’ll scan the MRZ and, if available, read the RFID chip. This takes about a minute.")
+        Text("Use your camera to scan your photo page, then read the chip if it has one.")
           .font(.subheadline)
           .foregroundStyle(.black.opacity(0.6))
           .multilineTextAlignment(.center)
@@ -114,16 +127,18 @@ struct ContentView: View {
       Spacer()
 
       PrimaryActionButton(title: "Continue") {
-        setStep(.mrz)
+        presentMRZSheet()
       }
     }
+    .padding(16)
   }
 
-  private var mrzView: some View {
+  private var mrzScannerView: some View {
     ZStack {
       MRZScannerView(onValidMRZ: { validMRZ, result in
         guard !didTriggerMRZ else { return }
         didTriggerMRZ = true
+        prepareForNewScan()
         mrz = validMRZ
         mrzResult = result
         withAnimation(.easeInOut(duration: 0.25)) {
@@ -133,7 +148,12 @@ struct ContentView: View {
           cameraBlur = 8
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-          setStep(.rfidCheck)
+          withAnimation(.easeInOut(duration: 0.25)) {
+            isMRZSheetPresented = false
+          }
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            setStep(.rfidCheck)
+          }
         }
       })
       .ignoresSafeArea()
@@ -144,11 +164,11 @@ struct ContentView: View {
 
       VStack(spacing: 6) {
         Spacer()
-        Text("Scan your MRZ")
+        Text("Scan your photo page")
           .font(.headline)
           .foregroundStyle(.white)
 
-        Text("Align the MRZ within the box.")
+        Text("Align the photo page within the box.")
           .font(.subheadline)
           .foregroundStyle(.white.opacity(0.85))
       }
@@ -179,12 +199,12 @@ struct ContentView: View {
       }
 
       VStack(spacing: 12) {
-        PrimaryActionButton(title: "Yes, I see it") {
+        PrimaryActionButton(title: rfidPrimaryActionTitle) {
           hasRFIDSymbol = true
           setStep(.nfc)
         }
 
-        PrimaryActionButton(title: "No, I don't") {
+        PrimaryActionButton(title: "No — skip this step") {
           hasRFIDSymbol = false
           setStep(.result)
         }
@@ -192,6 +212,7 @@ struct ContentView: View {
       .frame(maxWidth: 360)
     }
     .frame(maxWidth: .infinity)
+    .padding(16)
   }
 
   private var nfcView: some View {
@@ -199,7 +220,7 @@ struct ContentView: View {
       Spacer()
 
       VStack(alignment: .center, spacing: 10) {
-        Text("Keep your iPhone close to the document.")
+        Text(nfcInstructionText)
           .font(.headline)
           .foregroundStyle(.black)
           .multilineTextAlignment(.center)
@@ -232,6 +253,7 @@ struct ContentView: View {
       .disabled(isNFCActive)
       .opacity(isNFCActive ? 0.5 : 1.0)
     }
+    .padding(16)
   }
 
   private var resultView: some View {
@@ -241,15 +263,16 @@ struct ContentView: View {
       } else if let mrzResult {
         mrzResultView(mrzResult, hasRFIDSymbol: hasRFIDSymbol)
       } else {
-        Text("No MRZ data available.")
+        Text("No document data available.")
       }
 
       Spacer()
 
-      PrimaryActionButton(title: "Scan Another Document") {
+      PrimaryActionButton(title: "Scan Another ID") {
         resetToMRZ()
       }
     }
+    .padding(16)
   }
 
   private struct MRZScanOverlayView: View {
@@ -302,6 +325,26 @@ struct ContentView: View {
   }
 
   private func resetToMRZ() {
+    isMRZLocked = false
+    cameraBlur = 0
+    didTriggerMRZ = false
+    presentMRZSheet()
+  }
+
+  private func handleMRZSheetDismiss() {
+    isMRZLocked = false
+    cameraBlur = 0
+    didTriggerMRZ = false
+  }
+
+  private func presentMRZSheet() {
+    isMRZLocked = false
+    cameraBlur = 0
+    didTriggerMRZ = false
+    isMRZSheetPresented = true
+  }
+
+  private func prepareForNewScan() {
     mrz = ""
     mrzResult = nil
     hasStartedNFC = false
@@ -309,15 +352,31 @@ struct ContentView: View {
     nfcReader.result = nil
     nfcReader.errorMessage = nil
     hasRFIDSymbol = nil
-    isMRZLocked = false
-    cameraBlur = 0
-    didTriggerMRZ = false
-    setStep(.mrz)
   }
 
+  private func setStepInstantly(_ newStep: ScanStep) {
+    guard newStep != step else { return }
+    navDirection = newStep.rawValue >= step.rawValue ? .forward : .backward
+    previousStep = nil
+    step = newStep
+    transitionProgress = 1
+  }
+
+
   private func setStep(_ newStep: ScanStep) {
+    guard newStep != step else { return }
+    navDirection = newStep.rawValue >= step.rawValue ? .forward : .backward
+    previousStep = step
+    let outgoingStep = previousStep
+    step = newStep
+    transitionProgress = 0
     withAnimation(.easeInOut(duration: 0.35)) {
-      step = newStep
+      transitionProgress = 1
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+      if previousStep == outgoingStep {
+        previousStep = nil
+      }
     }
   }
 
@@ -362,7 +421,7 @@ struct ContentView: View {
   @ViewBuilder
   private func mrzResultView(_ result: MRZResult, hasRFIDSymbol: Bool?) -> some View {
     VStack(spacing: 16) {
-      Text("MRZ details only")
+      Text("Document details only")
         .font(.headline)
         .foregroundStyle(.black)
 
@@ -446,6 +505,30 @@ struct ContentView: View {
   }
 
   private var rfidHintText: String = "Look for this symbol on the cover or photo page."
+
+  private var nfcInstructionText: String {
+    if let mrzResult, isPassportDocument(mrzResult) {
+      return "Keep your iPhone close to your passport."
+    }
+    return "Keep your iPhone close to your ID."
+  }
+
+  private var rfidPrimaryActionTitle: String {
+    if let mrzResult, isPassportDocument(mrzResult) {
+      return "Yes — scan my Passport"
+    }
+    return "Yes — scan my ID"
+  }
+
+  private func isPassportDocument(_ result: MRZResult) -> Bool {
+    if result.format == .td3 {
+      return true
+    }
+    let cleaned = result.documentType.replacingOccurrences(of: "<", with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .uppercased()
+    return cleaned.hasPrefix("P")
+  }
 
   private func mrzFallbackMessage(hasRFIDSymbol: Bool?) -> String {
     switch hasRFIDSymbol {

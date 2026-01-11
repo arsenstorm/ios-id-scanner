@@ -23,7 +23,7 @@
 	<key>NFCReaderUsageDescription</key>
 	<string>Used to read ePassport NFC data.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Used to scan the MRZ on your document.</string>
+	<string>We use the camera to scan the lines at the bottom of your passport or ID card to read document data.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -39,10 +39,10 @@
 			</array>
 		</dict>
 	</dict>
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
