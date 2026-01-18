@@ -11,7 +11,8 @@ final class MRZOCRViewController: UIViewController, AVCaptureVideoDataOutputSamp
 
   private var isProcessing = false
   private var lastMRZ: String?
-  var onMRZ: ((String) -> Void)?
+  private var lastCAN: String?
+  var onScan: ((String, String?) -> Void)?
 
   private lazy var textRequest: VNRecognizeTextRequest = {
     let req = VNRecognizeTextRequest { [weak self] request, error in
@@ -31,11 +32,13 @@ final class MRZOCRViewController: UIViewController, AVCaptureVideoDataOutputSamp
       // We join lines, then attempt to extract MRZ-shaped lines.
       let candidate = Self.extractMRZ(from: lines)
       guard let mrz = candidate else { return }
+      let can = Self.extractCAN(from: lines)
 
-      if mrz != lastMRZ {
+      if mrz != lastMRZ || can != lastCAN {
         lastMRZ = mrz
+        lastCAN = can
         DispatchQueue.main.async {
-          self.onMRZ?(mrz)
+          self.onScan?(mrz, can)
         }
       }
     }
@@ -199,5 +202,48 @@ final class MRZOCRViewController: UIViewController, AVCaptureVideoDataOutputSamp
   private static func scoreMRZLine(_ s: String) -> Int {
     let lt = s.count(where: { $0 == "<" })
     return lt * 10 + s.count
+  }
+
+  private static func extractCAN(from lines: [String]) -> String? {
+    let eligibleLines = lines
+      .filter { !$0.contains("<") }
+    let labeledLines = eligibleLines.filter { line in
+      let up = line.uppercased()
+      return up.contains("CAN") || up.contains("CARD") || up.contains("ACCESS")
+    }
+
+    let labeledCandidates = labeledLines
+      .flatMap { digitRuns(in: $0) }
+      .filter { $0.count == 6 }
+
+    if let match = labeledCandidates.first {
+      return match
+    }
+
+    let candidates = eligibleLines
+      .flatMap { digitRuns(in: $0) }
+      .filter { $0.count == 6 }
+
+    return candidates.first
+  }
+
+  private static func digitRuns(in s: String) -> [String] {
+    var runs: [String] = []
+    var current = ""
+
+    for ch in s {
+      if ch >= "0" && ch <= "9" {
+        current.append(ch)
+      } else if !current.isEmpty {
+        runs.append(current)
+        current = ""
+      }
+    }
+
+    if !current.isEmpty {
+      runs.append(current)
+    }
+
+    return runs
   }
 }

@@ -37,6 +37,7 @@ final class PassportNFCReader: NSObject, ObservableObject {
   private let reader = PassportReader()
   private var currentMRZ: String = ""
   private var currentMRZKey: String = ""
+  private var currentCardAccessNumber: String?
   private var readTask: Task<Void, Never>?
 
   override init() {
@@ -44,9 +45,10 @@ final class PassportNFCReader: NSObject, ObservableObject {
     reader.trackingDelegate = self
   }
 
-  func start(mrz: String) {
+  func start(mrz: String, cardAccessNumber: String? = nil) {
     currentMRZ = mrz
     currentMRZKey = ""
+    currentCardAccessNumber = cardAccessNumber
     result = nil
     errorMessage = nil
     progress = 0
@@ -70,6 +72,7 @@ final class PassportNFCReader: NSObject, ObservableObject {
     do {
       let config = PassportReadingConfiguration(
         mrzKey: currentMRZKey,
+        cardAccessNumber: currentCardAccessNumber,
         dataGroups: [.DG1, .DG2],
         displayMessageHandler: { [weak self] message in
           self?.handleDisplayMessage(message)

@@ -20,6 +20,7 @@ struct ContentView: View {
   @State private var transitionProgress: CGFloat = 1
   @State private var mrz: String = ""
   @State private var mrzResult: MRZResult?
+  @State private var cardAccessNumber: String?
   @StateObject private var nfcReader = PassportNFCReader()
   @State private var hasStartedNFC = false
   @State private var isNFCActive = false
@@ -55,7 +56,7 @@ struct ContentView: View {
             guard !hasStartedNFC else { return }
             hasStartedNFC = true
             isNFCActive = true
-            nfcReader.start(mrz: mrz)
+            nfcReader.start(mrz: mrz, cardAccessNumber: cardAccessNumber)
           }
         }
         .onChange(of: hasResult) { newValue in
@@ -135,12 +136,13 @@ struct ContentView: View {
 
   private var mrzScannerView: some View {
     ZStack {
-      MRZScannerView(onValidMRZ: { validMRZ, result in
+      MRZScannerView(onValidMRZ: { validMRZ, result, can in
         guard !didTriggerMRZ else { return }
         didTriggerMRZ = true
         prepareForNewScan()
         mrz = validMRZ
         mrzResult = result
+        cardAccessNumber = can
         withAnimation(.easeInOut(duration: 0.25)) {
           isMRZLocked = true
         }
@@ -248,7 +250,7 @@ struct ContentView: View {
       PrimaryActionButton(title: "Try Again") {
         guard !isNFCActive else { return }
         isNFCActive = true
-        nfcReader.start(mrz: mrz)
+        nfcReader.start(mrz: mrz, cardAccessNumber: cardAccessNumber)
       }
       .disabled(isNFCActive)
       .opacity(isNFCActive ? 0.5 : 1.0)
@@ -347,6 +349,7 @@ struct ContentView: View {
   private func prepareForNewScan() {
     mrz = ""
     mrzResult = nil
+    cardAccessNumber = nil
     hasStartedNFC = false
     isNFCActive = false
     nfcReader.result = nil
@@ -401,6 +404,9 @@ struct ContentView: View {
         fieldRow("First Name", result.firstName)
         fieldRow("Last Name", result.lastName)
         fieldRow("Document Number", result.documentNumber)
+        if let cardAccessNumber, !cardAccessNumber.isEmpty {
+          fieldRow("Card Access Number", cardAccessNumber)
+        }
         fieldRow("Nationality", result.nationality)
         fieldRow("Date of Birth", formatMRZDate(result.dateOfBirth))
         fieldRow("Sex", formatSex(result.gender))
@@ -434,6 +440,9 @@ struct ContentView: View {
         fieldRow("First Name", result.givenNames)
         fieldRow("Last Name", result.surnames)
         fieldRow("Document Number", result.documentNumber)
+        if let cardAccessNumber, !cardAccessNumber.isEmpty {
+          fieldRow("Card Access Number", cardAccessNumber)
+        }
         fieldRow("Nationality", result.nationality)
         fieldRow("Date of Birth", formatMRZDate(result.birthDateYYMMDD))
         fieldRow("Sex", formatSex(result.sex))
