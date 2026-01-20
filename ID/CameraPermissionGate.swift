@@ -60,12 +60,8 @@ struct CameraPermissionGate<Destination: View>: View {
       Spacer()
 
       VStack(spacing: 12) {
-        PrimaryActionButton(title: "Enable camera") {
+        PrimaryActionButton(title: "Continue") {
           requestCameraAccess()
-        }
-
-        SecondaryActionButton(title: "Cancel") {
-          onCancel()
         }
       }
       .frame(maxWidth: 360)
@@ -88,18 +84,23 @@ struct CameraPermissionGate<Destination: View>: View {
           .font(.subheadline)
           .foregroundStyle(.black.opacity(0.6))
           .multilineTextAlignment(.center)
+
+        Text("You can enable camera access in Settings.")
+          .font(.footnote)
+          .foregroundStyle(.black.opacity(0.45))
+          .multilineTextAlignment(.center)
       }
       .frame(maxWidth: 360)
 
       Spacer()
 
       VStack(spacing: 12) {
-        PrimaryActionButton(title: "Open Settings") {
-          openAppSettings()
+        PrimaryActionButton(title: "Close") {
+          onCancel()
         }
 
-        SecondaryActionButton(title: "Cancel") {
-          onCancel()
+        SecondaryActionButton(title: "Open Settings") {
+          openAppSettings()
         }
       }
       .frame(maxWidth: 360)
